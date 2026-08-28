@@ -10,23 +10,17 @@ type Book = {
   addedAt: string;
 };
 
-type GoogleVolume = {
-  id: string;
-  volumeInfo?: {
-    title?: string;
-    authors?: string[];
-    imageLinks?: {
-      thumbnail?: string;
-      smallThumbnail?: string;
-    };
-  };
+type AladinItem = {
+  itemId?: number | string;
+  isbn?: string;
+  isbn13?: string;
+  title?: string;
+  author?: string;
+  cover?: string;
 };
 
-type OpenLibraryDoc = {
-  key?: string;
-  title?: string;
-  author_name?: string[];
-  cover_i?: number;
+type AladinResponse = {
+  item?: AladinItem[];
 };
 
 const app = new Hono();
@@ -40,48 +34,56 @@ app.use(
 
 app.get('/health', (c) => c.json({ ok: true }));
 
-async function searchGoogle(q: string): Promise<Book[] | null> {
-  const params = new URLSearchParams({
-    q,
-    maxResults: '20',
-    printType: 'books',
-  });
+function parseAladinJson(text: string): AladinResponse {
+  const trimmed = text.trim();
+  const jsonText = trimmed.startsWith('{')
+    ? trimmed
+    : trimmed.slice(trimmed.indexOf('{'), trimmed.lastIndexOf('}') + 1);
+  return JSON.parse(jsonText) as AladinResponse;
+}
 
-  const key = process.env.GOOGLE_BOOKS_API_KEY;
-  if (key) params.set('key', key);
-
-  const response = await fetch(`https://www.googleapis.com/books/v1/volumes?${params.toString()}`);
-  if (!response.ok) return null;
-
-  const data = (await response.json()) as { items?: GoogleVolume[] };
-  return (data.items ?? []).map((item) => {
-    const info = item.volumeInfo ?? {};
-    const thumbnail = info.imageLinks?.thumbnail ?? info.imageLinks?.smallThumbnail ?? null;
+function mapItems(items: AladinItem[]): Book[] {
+  return items.map((item, index) => {
+    const id =
+      item.isbn13 ||
+      item.isbn ||
+      (item.itemId != null ? String(item.itemId) : `aladin-${index}`);
+    const thumbnail = item.cover
+      ? item.cover.replace('http://', 'https://')
+      : null;
     return {
-      id: item.id,
-      title: info.title ?? '제목 없음',
-      authors: info.authors?.join(', ') ?? '저자 미상',
-      thumbnail: thumbnail ? thumbnail.replace('http://', 'https://') : null,
+      id,
+      title: item.title?.trim() || '제목 없음',
+      authors: item.author?.trim() || '저자 미상',
+      thumbnail,
       addedAt: '',
     };
   });
 }
 
-async function searchOpenLibrary(q: string): Promise<Book[]> {
-  const params = new URLSearchParams({ q, limit: '20' });
-  const response = await fetch(`https://openlibrary.org/search.json?${params.toString()}`);
-  if (!response.ok) return [];
+async function searchAladin(q: string): Promise<Book[] | null> {
+  const ttbkey = process.env.ALADIN_TTB_KEY?.trim();
+  if (!ttbkey) return null;
 
-  const data = (await response.json()) as { docs?: OpenLibraryDoc[] };
-  return (data.docs ?? []).map((doc, index) => ({
-    id: doc.key ?? `ol-${index}`,
-    title: doc.title ?? '제목 없음',
-    authors: doc.author_name?.join(', ') ?? '저자 미상',
-    thumbnail: doc.cover_i
-      ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg`
-      : null,
-    addedAt: '',
-  }));
+  const params = new URLSearchParams({
+    ttbkey,
+    Query: q,
+    QueryType: 'Keyword',
+    MaxResults: '20',
+    start: '1',
+    SearchTarget: 'Book',
+    output: 'js',
+    Version: '20131101',
+    Cover: 'MidBig',
+  });
+
+  const response = await fetch(
+    `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?${params.toString()}`
+  );
+  if (!response.ok) return null;
+
+  const books = mapItems(parseAladinJson(await response.text()).item ?? []);
+  return books;
 }
 
 app.get('/books', async (c) => {
@@ -90,13 +92,12 @@ app.get('/books', async (c) => {
     return c.json({ books: [] });
   }
 
-  const google = await searchGoogle(q);
-  if (google && google.length > 0) {
-    return c.json({ books: google, source: 'google' });
+  const books = await searchAladin(q);
+  if (!books) {
+    return c.json({ books: [], error: 'aladin_unavailable' }, 502);
   }
 
-  const fallback = await searchOpenLibrary(q);
-  return c.json({ books: fallback, source: 'openlibrary' });
+  return c.json({ books, source: 'aladin' });
 });
 
 const port = Number(process.env.PORT ?? 8787);
