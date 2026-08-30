@@ -11,7 +11,7 @@ import {
   oauthProvidersForUser,
   uniqueLoginId,
 } from '../db.js';
-import { feOrigin } from '../env.js';
+import { feOrigin, isAdminLoginId } from '../env.js';
 import { hashPassword, verifyPassword } from './password.js';
 import { authorizeUrl, getProviderConfig, loadOAuthProfile, syntheticEmail } from './oauth.js';
 import {
@@ -43,6 +43,7 @@ function publicUser(user: {
     nickname: user.nickname,
     providers: oauthProvidersForUser(user.id),
     hasPassword: Boolean(user.passwordHash),
+    isAdmin: isAdminLoginId(user.loginId),
   };
 }
 

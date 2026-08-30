@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { authRoutes } from './auth/routes.js';
+import { inquiryRoutes } from './inquiry/routes.js';
 import { loadDotEnv } from './env.js';
 
 loadDotEnv();
@@ -40,6 +41,7 @@ app.use(
 
 app.get('/health', (c) => c.json({ ok: true }));
 app.route('/auth', authRoutes);
+app.route('/inquiries', inquiryRoutes);
 
 function parseAladinJson(text: string): AladinResponse {
   const trimmed = text.trim();

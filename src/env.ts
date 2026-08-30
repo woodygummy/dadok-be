@@ -46,3 +46,12 @@ export function oauthRedirectBase() {
     ''
   );
 }
+
+export function isAdminLoginId(loginId: string) {
+  const raw = process.env.ADMIN_LOGIN_ID?.trim() || 'woody';
+  const allowed = raw
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  return allowed.includes(loginId.trim().toLowerCase());
+}
