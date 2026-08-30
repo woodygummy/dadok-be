@@ -149,10 +149,11 @@ inquiryRoutes.get('/:id', async (c) => {
 inquiryRoutes.post('/:id/replies', async (c) => {
   const user = await currentUser(c);
   if (!user) return c.json({ error: 'unauthorized' }, 401);
+  if (!user.isAdmin) return c.json({ error: '답변은 관리자만 보낼 수 있습니다.' }, 403);
   const inquiry = findInquiry(c.req.param('id'));
   if (!inquiry) return c.json({ error: 'not_found' }, 404);
-  if (!user.isAdmin && inquiry.userId !== user.id) {
-    return c.json({ error: 'forbidden' }, 403);
+  if (inquiry.messages.some((message) => message.role === 'admin')) {
+    return c.json({ error: '이미 답변한 문의입니다.' }, 400);
   }
 
   const payload = (await c.req.json().catch(() => null)) as {
@@ -167,7 +168,7 @@ inquiryRoutes.post('/:id/replies', async (c) => {
   }
 
   const updated = addInquiryMessage(inquiry.id, {
-    role: user.isAdmin ? 'admin' : 'user',
+    role: 'admin',
     body,
     attachments: images,
   });
