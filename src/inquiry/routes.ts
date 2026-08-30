@@ -34,11 +34,22 @@ function previewBody(body: unknown) {
   return typeof body === 'string' ? body.trim().slice(0, MAX_BODY) : '';
 }
 
+function clip(text: string) {
+  const value = text.replace(/\s+/g, ' ').trim();
+  if (!value) return '';
+  return value.length > 36 ? `${value.slice(0, 36)}…` : value;
+}
+
 function summary(inquiry: InquiryRecord, admin: boolean) {
   const owner = findUserById(inquiry.userId);
+  const question = [...inquiry.messages].find((message) => message.role === 'user');
+  const reply = [...inquiry.messages].reverse().find((message) => message.role === 'admin');
   return {
     id: inquiry.id,
     preview: inquiry.preview,
+    question: clip(question?.body ?? '') || (question?.attachments.length ? '파일 첨부' : ''),
+    reply: clip(reply?.body ?? '') || (reply?.attachments.length ? '파일 첨부' : ''),
+    hasReply: Boolean(reply),
     updatedAt: inquiry.updatedAt,
     unread: admin ? inquiry.adminUnread : inquiry.userUnread,
     fromLoginId: owner?.loginId ?? '',
