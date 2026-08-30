@@ -99,16 +99,28 @@ authRoutes.post('/login', async (c) => {
 
   const loginId = body?.loginId?.trim() ?? '';
   const password = body?.password ?? '';
-  if (!loginId || !password) {
-    return c.json({ error: '아이디와 비밀번호를 입력해 주세요.' }, 400);
+  if (!loginId) {
+    return c.json({ error: '아이디를 입력해 주세요.' }, 400);
+  }
+  if (!password) {
+    return c.json({ error: '비밀번호를 입력해 주세요.' }, 400);
   }
 
   const user = findUserByLoginOrEmail(loginId);
-  if (!user?.passwordHash) {
-    return c.json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' }, 401);
+  if (!user) {
+    return c.json(
+      { error: '해당 아이디를 찾을 수 없습니다. 아이디를 확인하거나 회원가입해 주세요.' },
+      401
+    );
+  }
+  if (!user.passwordHash) {
+    return c.json(
+      { error: '비밀번호로 로그인할 수 없는 계정입니다. 소셜 로그인을 이용해 주세요.' },
+      401
+    );
   }
   if (!verifyPassword(password, user.passwordHash)) {
-    return c.json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' }, 401);
+    return c.json({ error: '비밀번호가 올바르지 않습니다. 다시 입력해 주세요.' }, 401);
   }
 
   const token = await signAccessToken(user);
