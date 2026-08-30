@@ -1,6 +1,10 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { authRoutes } from './auth/routes.js';
+import { loadDotEnv } from './env.js';
+
+loadDotEnv();
 
 type Book = {
   id: string;
@@ -29,10 +33,13 @@ app.use(
   '*',
   cors({
     origin: '*',
+    allowHeaders: ['Content-Type', 'Authorization'],
+    allowMethods: ['GET', 'POST', 'OPTIONS'],
   })
 );
 
 app.get('/health', (c) => c.json({ ok: true }));
+app.route('/auth', authRoutes);
 
 function parseAladinJson(text: string): AladinResponse {
   const trimmed = text.trim();
